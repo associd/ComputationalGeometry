@@ -95,10 +95,27 @@ class Convex {
         this.firstExtreme = null;
         this.GetFirstExtreme();
         this.SortByAngle();
+        this.GrahamScan();
     }
 
     Draw = (ctx) => {
+        if (this.extremies.length > 2) {
+            ctx.beginPath()
+            ctx.moveTo(this.extremies[0].x, this.extremies[0].y)
+            for (let i = 1; i < this.extremies.length; i++) {
+                ctx.lineTo(this.extremies[i].x, this.extremies[i].y)
+            }
+            ctx.lineTo(this.extremies[0].x, this.extremies[0].y)
+            ctx.fillStyle = "rgba(255,115,0,0.32)"
+            ctx.fill()
+        }
+
         this.verteis.forEach((point, index) => {
+            point.Draw(ctx)
+        })
+
+        this.extremies.forEach((point, index) => {
+            point.color = "#00b2ff"
             point.Draw(ctx)
             if (point.id !== -1)
             {
@@ -109,15 +126,13 @@ class Convex {
                 ctx.stroke()
             }
         })
-        this.extremies.forEach(point => {
-            point.Draw(ctx)
-        })
     }
 
     AddPoint = (v) => {
         this.verteis.push(v);
         this.GetFirstExtreme();
         this.SortByAngle();
+        this.GrahamScan();
     }
 
     GetFirstExtreme = () => {
@@ -133,7 +148,6 @@ class Convex {
                 this.firstExtreme = this.verteis[i];
             }
         }
-        this.firstExtreme.color = "#00b2ff";
 
         this.verteis.splice(this.verteis.indexOf(this.firstExtreme), 1)
         this.verteis.unshift(this.firstExtreme)
@@ -150,8 +164,27 @@ class Convex {
             }
         })
         if (this.verteis.length > 1) {
-            this.verteis[1].color = "#00b2ff";
             this.extremies[1] = this.verteis[1]
+        }
+    }
+
+    GrahamScan = () => {
+        let s = this.extremies;
+        let t = this.verteis.slice(2);
+        if (s.length !== 2) {
+            return undefined;
+        }
+
+
+        while (t.length > 0) {
+            let point = t[0]
+            let startPoint = s[s.length - 2];
+            let endPoint = s[s.length - 1];
+            if (Vector2.ToLeft(startPoint, endPoint, point)) {
+                s.push(t.shift())
+            }else{
+                s.pop()
+            }
         }
     }
 
