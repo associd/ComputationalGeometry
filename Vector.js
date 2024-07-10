@@ -6,6 +6,11 @@ class Vector2 {
         this.color = "white";
     }
 
+    AddPoint = (vector2) => {
+        this.x += vector2.x;
+        this.y += vector2.y;
+    }
+
     Substract = (vector) => {
         return new Vector2(this.x - vector.x, this.y - vector.y)
     }
@@ -32,6 +37,10 @@ class Vector2 {
 
     static Cross = (l, r) => {
         return l.x *　r.y - r.x * l.y;
+    }
+
+    static Dot = (l, r) => {
+        return l.x * r.x + l.y * r.y;
     }
 
     static ToLeft = (vectorA, vectorB, vectorS) => {
@@ -93,6 +102,9 @@ class Convex {
         this.verteis = vector2Points;
         this.extremies = [];
         this.firstExtreme = null;
+        this.center = null;
+        this.path = null;
+        this.lineWidth = 2;
         this.GetFirstExtreme();
         this.SortByAngle();
         this.GrahamScan();
@@ -101,13 +113,12 @@ class Convex {
     Draw = (ctx) => {
         if (this.extremies.length > 2) {
             ctx.beginPath()
-            ctx.moveTo(this.extremies[0].x, this.extremies[0].y)
-            for (let i = 1; i < this.extremies.length; i++) {
-                ctx.lineTo(this.extremies[i].x, this.extremies[i].y)
-            }
-            ctx.lineTo(this.extremies[0].x, this.extremies[0].y)
             ctx.fillStyle = "rgba(255,115,0,0.32)"
-            ctx.fill()
+            ctx.fill(this.path)
+
+            ctx.lineWidth = this.lineWidth
+            ctx.strokeStyle = "rgba(255,115,0,0.32)"
+            ctx.stroke(this.path)
         }
 
         this.verteis.forEach((point, index) => {
@@ -122,10 +133,15 @@ class Convex {
                 ctx.beginPath()
                 ctx.font = "16px serif"
                 ctx.strokeStyle = "#ffffff"
+                ctx.lineWidth = 1
                 ctx.strokeText(index, point.x + point.size / 2, point.y - point.size / 2, 28)
                 ctx.stroke()
             }
         })
+
+        if (this.center !== null) {
+            this.center.Draw(ctx)
+        }
     }
 
     AddPoint = (v) => {
@@ -175,7 +191,6 @@ class Convex {
             return undefined;
         }
 
-
         while (t.length > 0) {
             let point = t[0]
             let startPoint = s[s.length - 2];
@@ -186,7 +201,59 @@ class Convex {
                 s.pop()
             }
         }
+
+        this.CratePath()
+        this.FindCenter();
+    }
+
+    CratePath = () => {
+        this.path = new Path2D();
+        this.path.moveTo(this.extremies[0].x, this.extremies[0].y)
+        for (let i = 1; i < this.extremies.length; i++) {
+            this.path.lineTo(this.extremies[i].x, this.extremies[i].y)
+        }
+        this.path.lineTo(this.extremies[0].x, this.extremies[0].y)
+    }
+
+    FindCenter = () => {
+        this.center = new Vector2(0 , 0)
+        this.extremies.forEach(e => {
+            this.center.AddPoint(e)
+        })
+        this.center = this.center.Divide(this.extremies.length)
+        this.center.color = "#a100ff"
+    }
+
+    IsPointInside = (ctx, vector2Point) => {
+        return this.extremies.length > 2 && ctx.isPointInPath(this.path, vector2Point.x, vector2Point.y);
+    }
+
+    Move = (vector2Offset) => {
+        this.verteis.forEach(v => {
+            v.AddPoint(vector2Offset)
+        })
+        this.CratePath()
+        this.FindCenter();
+    }
+
+    ClosestExtremePoint = (vector2Dir) => {
+        if (this.extremies.length === 0) return
+        let closestPoint = this.extremies[0]
+        let maxDot = Vector2.Dot(vector2Dir, closestPoint.Substract(this.center).Normalize())
+        this.extremies.forEach(e => {
+            let dotValue = Vector2.Dot(vector2Dir, e.Substract(this.center).Normalize());
+            if (dotValue > maxDot) {
+                closestPoint = e;
+                maxDot = dotValue
+            }
+        })
+
+        return closestPoint;
     }
 
     static DefaultColor = "#12ff00";
+}
+
+function CollisionWithGJK(convexA, convexB){
+    let dir = new Vector2(1, 0)
 }

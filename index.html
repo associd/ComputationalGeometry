@@ -190,6 +190,50 @@
             }
         })
 
+        canvas.addEventListener("mousedown", evt => {
+            let downPointer = new Vector2(evt.offsetX, evt.offsetY)
+            let downConvex = null;
+            for (let i = 0; i < ConvexList.length; i++) {
+                if (ConvexList[i].IsPointInside(ctx, downPointer)) {
+                    downConvex = ConvexList[i]
+                    canvas.addEventListener("mousemove", MoveHandler)
+                    canvas.addEventListener("mouseup", UpHandler)
+                    break;
+                }
+            }
+
+            function MoveHandler(evt) {
+                if (downConvex !== null) {
+                    downConvex.Move(new Vector2(evt.movementX, evt.movementY))
+                }
+            }
+
+            function UpHandler(evt) {
+                canvas.removeEventListener("mousemove", MoveHandler)
+                canvas.removeEventListener("mouseup", UpHandler)
+                downConvex = null;
+            }
+        })
+
+        canvas.addEventListener("mousemove", evt => {
+            let downPointer = new Vector2(evt.offsetX, evt.offsetY)
+            let downConvex = null;
+            for (let i = 0; i < ConvexList.length; i++) {
+                if (ConvexList[i].IsPointInside(ctx, downPointer)) {
+                    ConvexList[i].lineWidth = 8
+                }else {
+                    ConvexList[i].lineWidth = 2
+                }
+
+                if (ConvexList[i].extremies.length > 2) {
+                    let v = ConvexList[i].ClosestExtremePoint(downPointer.Substract(ConvexList[i].center).Normalize())
+                    ConvexList[i].extremies.forEach(e => {
+                        e.size = e === v ? 6 : 4
+                    })
+                }
+            }
+        })
+
         Tick();
 
         function UpdateInfo() {
