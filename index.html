@@ -28,6 +28,7 @@
     <div class="dashboard">
         <div>
             <button id="addConvexBtn">添加一个凸包</button>
+            <button id="addTriangle">添加一一个三角形</button>
             <button id="createSegmentBtn">添加一个线段</button>
             <button id="createPoint">添加一个点</button>
 
@@ -57,14 +58,18 @@
             AddPoint : 4,
             ToLeftTest : 5,
             SelectSegment : 6,
+            AddTriangle : 7,
         }
 
         const ConvexList = []
         const SegmentList = []
         const PointList = []
+        const Triangles = []
+        const TriangleClosestPointList = {}
 
         let mode = Mode.None;
         let ctx = canvas.getContext("2d");
+        let pointerPos = null
 
         UpdateInfo();
 
@@ -85,7 +90,7 @@
             }
 
             function endBtnClickHandler(evt){
-                if (c.verteis.length === 0) {
+                if (c.vertices.length === 0) {
                     ConvexList.slice(ConvexList.indexOf(c), 1)
                 }
                 window.removeEventListener("click", clickHandler);
@@ -121,6 +126,32 @@
 
             }
             window.addEventListener("click", clickHandler)
+        })
+
+        addTriangle.addEventListener("click", evt => {
+            mode = Mode.AddTriangle;
+            UpdateInfo();
+            evt.preventDefault()
+            evt.stopPropagation()
+
+            window.addEventListener("click", clickHandler)
+            let v = []
+            function clickHandler(evt) {
+                let p = new Vector2(evt.offsetX, evt.offsetY);
+                v.push(p)
+                PointList.push(p)
+
+                if (v.length >= 3) {
+                    v.forEach(p => {
+                        PointList.splice(PointList.indexOf(p), 1)
+                    })
+                    Triangles.push(new Triangle(v[0], v[1], v[2]))
+                    window.removeEventListener("click", clickHandler)
+                    mode = Mode.None;
+                    UpdateInfo();
+                }
+
+            }
         })
 
         createPoint.addEventListener("click", evt => {
@@ -190,9 +221,9 @@
             }
         })
 
+        let downConvex = null;
         canvas.addEventListener("mousedown", evt => {
             let downPointer = new Vector2(evt.offsetX, evt.offsetY)
-            let downConvex = null;
             for (let i = 0; i < ConvexList.length; i++) {
                 if (ConvexList[i].IsPointInside(ctx, downPointer)) {
                     downConvex = ConvexList[i]
@@ -204,7 +235,7 @@
 
             function MoveHandler(evt) {
                 if (downConvex !== null) {
-                    downConvex.Move(new Vector2(evt.movementX, evt.movementY))
+                    downConvex.Translate(new Vector2(evt.movementX, evt.movementY))
                 }
             }
 
@@ -216,22 +247,28 @@
         })
 
         canvas.addEventListener("mousemove", evt => {
-            let downPointer = new Vector2(evt.offsetX, evt.offsetY)
+            pointerPos = new Vector2(evt.offsetX, evt.offsetY)
             let downConvex = null;
             for (let i = 0; i < ConvexList.length; i++) {
-                if (ConvexList[i].IsPointInside(ctx, downPointer)) {
+                if (ConvexList[i].IsPointInside(ctx, pointerPos)) {
                     ConvexList[i].lineWidth = 8
                 }else {
                     ConvexList[i].lineWidth = 2
                 }
 
                 if (ConvexList[i].extremies.length > 2) {
-                    let v = ConvexList[i].ClosestExtremePoint(downPointer.Substract(ConvexList[i].center).Normalize())
+                    let v = ConvexList[i].ClosestExtremePoint(pointerPos.Substract(ConvexList[i].center))
                     ConvexList[i].extremies.forEach(e => {
                         e.size = e === v ? 6 : 4
                     })
                 }
             }
+
+            Triangles.forEach(t => {
+                let cp = TriangleClosestPoint(t.vertices[0], t.vertices[1], t.vertices[2], pointerPos);
+                cp.color = "#0eff00"
+                TriangleClosestPointList[t] = cp
+            })
         })
 
         Tick();
@@ -255,6 +292,8 @@
                     break
                 case Mode.SelectSegment:
                     info.innerText = "选择一条线段"
+                case Mode.AddTriangle:
+                    info.innerText = "添加三个点"
                     break
             }
         }
@@ -265,10 +304,90 @@
             ctx.fillStyle = "#1b1b1b"
             ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+            let sx = new Segment(new Vector2(canvas.width / 2, 0), new Vector2(canvas.width / 2, canvas.height))
+            let sy = new Segment(new Vector2(0, canvas.height / 2), new Vector2(canvas.width, canvas.height / 2))
+            sx.lineWidth = 0.5
+            sx.Draw(ctx)
+            sy.lineWidth = 0.5
+            sy.Draw(ctx)
 
             PointList.forEach(c => c.Draw(ctx))
-            SegmentList.forEach(c => c.Draw(ctx))
-            ConvexList.forEach(c => c.Draw(ctx))
+            SegmentList.forEach(c => {
+                c.Draw(ctx)
+                // if (pointerPos) {
+                //     SegmentClosestPoint(c.start, c.end, pointerPos, ctx)
+                // }
+            })
+
+            ConvexList.forEach(c => {
+                c.color = "rgba(255,115,0,0.32)"
+            })
+
+            for (let i = 0; i < ConvexList.length; i++) {
+                for (let j = i + 1; j < ConvexList.length; j++) {
+                    let c = ConvexList[i];
+                    let oc = ConvexList[j]
+                    if (c !== oc && c.vertices.length > 2 && oc.vertices.length > 2) {
+                        let simplex = []
+                        let collision = GJK(c, oc, simplex, ctx, canvas)
+                        if (collision){
+                            c.color = "rgba(255,0,0,0.39)"
+                            oc.color = "rgba(255,0,0,0.32)"
+
+                            // let sl = simplex.length
+                            let dir = EPA(simplex, c, oc, ctx, canvas)
+                            //
+                            let mtv = new Segment(Vector2.Zero, Vector2.Zero.Add(dir))
+                            mtv.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
+                            mtv.Draw(ctx)
+                            //
+                            oc.Translate(dir.Multiply(0.5))
+                            c.Translate(dir.Inverse().Multiply(0.5))
+                            //
+                            let cc = new Convex(simplex)
+                            cc.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
+                            cc.color = "rgba(255,0,0,0.53)"
+                            cc.Draw(ctx)
+                        }
+
+                        let md = []
+
+                        for (let k = 0; k < c.extremies.length; k++) {
+                            for (let l = 0; l < oc.extremies.length; l++) {
+                                md.push(c.extremies[k].Substract(oc.extremies[l]))
+                            }
+                        }
+                        let mdc = new Convex(md)
+                        mdc.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
+
+                        if (mdc.extremies.length > 2) {
+                            ctx.beginPath()
+                            ctx.fillStyle = "rgba(255,220,0,0.33)"
+                            ctx.fill(mdc.path)
+
+                            ctx.lineWidth = 1
+                            ctx.strokeStyle = "rgba(255,220,0,0.33)"
+                            ctx.stroke(mdc.path)
+                        }
+
+                        mdc.extremies.forEach((point, index) => {
+                            point.color = "rgba(0,178,255,0.43)"
+                            point.size = 1
+                            point.Draw(ctx)
+                        })
+                    }
+                }
+            }
+
+            ConvexList.forEach(c => {
+                c.Draw(ctx)
+                // if (c.IsPointInside(ctx, pointerPos)){
+                //     let closest = ClosestEdge(c.extremies, pointerPos)
+                //     new Segment(closest.start, closest.start.Add(closest.edge)).Draw(ctx)
+                //     new Segment(pointerPos, pointerPos.Add(closest.n.Multiply(closest.d))).Draw(ctx)
+                // }
+            })
+            Triangles.forEach(c => c.Draw(ctx))
             requestAnimationFrame(Tick)
         }
     </script>
