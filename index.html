@@ -22,6 +22,9 @@
         }
     </style>
     <script src="Vector.js"></script>
+    <script src="Shape.js"></script>
+    <script src="Collision.js"></script>
+    <script src="Physics.js"></script>
 </head>
 <body>
     <canvas id="canvas" style="display: block"></canvas>
@@ -61,15 +64,24 @@
             AddTriangle : 7,
         }
 
-        const ConvexList = []
+        // const ConvexList = []
         const SegmentList = []
         const PointList = []
         const Triangles = []
         const TriangleClosestPointList = {}
+        window.KeysDown = {}
+        window.KeyDownAction = {
+            "w": (rb) => rb.AddForce(new Vector2(0, -100)),
+            "a": (rb) => rb.AddForce(new Vector2(-100, 0)),
+            "s": (rb) => rb.AddForce(new Vector2(0, 100)),
+            "d": (rb) => rb.AddForce(new Vector2(100, 0)),
+        }
+
+        const physics = new Physics()
 
         let mode = Mode.None;
         let ctx = canvas.getContext("2d");
-        let pointerPos = null
+        window.pointerPos = null
 
         UpdateInfo();
 
@@ -221,57 +233,48 @@
             }
         })
 
-        let downConvex = null;
+        //keysDown
+        window.addEventListener("keydown", evt => {
+            KeysDown[evt.key] = true;
+        })
+
+        //keysUp
+        window.addEventListener("keyup", evt => {
+            KeysDown[evt.key] = false;
+        })
+
+        // drag
+        window.downRigidBody = null;
         canvas.addEventListener("mousedown", evt => {
             let downPointer = new Vector2(evt.offsetX, evt.offsetY)
-            for (let i = 0; i < ConvexList.length; i++) {
-                if (ConvexList[i].IsPointInside(ctx, downPointer)) {
-                    downConvex = ConvexList[i]
-                    canvas.addEventListener("mousemove", MoveHandler)
-                    canvas.addEventListener("mouseup", UpHandler)
+            for (let i = 0; i < physics.rigidBodies.length; i++) {
+                if (physics.rigidBodies[i].shape.IsPointInside(ctx, downPointer)) {
+                    window.downRigidBody = physics.rigidBodies[i]
+                    window.addEventListener("mouseup", UpHandler)
                     break;
                 }
             }
 
-            function MoveHandler(evt) {
-                if (downConvex !== null) {
-                    downConvex.Translate(new Vector2(evt.movementX, evt.movementY))
-                }
-            }
-
             function UpHandler(evt) {
-                canvas.removeEventListener("mousemove", MoveHandler)
-                canvas.removeEventListener("mouseup", UpHandler)
-                downConvex = null;
+                window.removeEventListener("mouseup", UpHandler)
+                // downRigidBody = null;
             }
         })
 
         canvas.addEventListener("mousemove", evt => {
             pointerPos = new Vector2(evt.offsetX, evt.offsetY)
-            let downConvex = null;
-            for (let i = 0; i < ConvexList.length; i++) {
-                if (ConvexList[i].IsPointInside(ctx, pointerPos)) {
-                    ConvexList[i].lineWidth = 8
-                }else {
-                    ConvexList[i].lineWidth = 2
-                }
-
-                if (ConvexList[i].extremies.length > 2) {
-                    let v = ConvexList[i].ClosestExtremePoint(pointerPos.Substract(ConvexList[i].center))
-                    ConvexList[i].extremies.forEach(e => {
-                        e.size = e === v ? 6 : 4
-                    })
+            for (let i = 0; i < physics.rigidBodies.length; i++) {
+                if (physics.rigidBodies[i].shape.IsPointInside(ctx, pointerPos)) {
+                    physics.rigidBodies[i].shape.EventOnHovered()
+                }else{
+                    physics.rigidBodies[i].shape.EventOnNormal()
                 }
             }
-
-            Triangles.forEach(t => {
-                let cp = TriangleClosestPoint(t.vertices[0], t.vertices[1], t.vertices[2], pointerPos);
-                cp.color = "#0eff00"
-                TriangleClosestPointList[t] = cp
-            })
         })
 
-        Tick();
+        let lastTime = 0
+
+        Tick(0);
 
         function UpdateInfo() {
             switch (mode) {
@@ -298,96 +301,103 @@
             }
         }
 
-        function Tick() {
-            ctx.reset()
+        function Tick(time) {
+            let deltaTime = (time - lastTime) / 1000;
+            lastTime = time
 
+            ctx.reset()
             ctx.fillStyle = "#1b1b1b"
             ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-            let sx = new Segment(new Vector2(canvas.width / 2, 0), new Vector2(canvas.width / 2, canvas.height))
-            let sy = new Segment(new Vector2(0, canvas.height / 2), new Vector2(canvas.width, canvas.height / 2))
-            sx.lineWidth = 0.5
-            sx.Draw(ctx)
-            sy.lineWidth = 0.5
-            sy.Draw(ctx)
-
-            PointList.forEach(c => c.Draw(ctx))
-            SegmentList.forEach(c => {
-                c.Draw(ctx)
-                // if (pointerPos) {
-                //     SegmentClosestPoint(c.start, c.end, pointerPos, ctx)
-                // }
+            physics.Update(deltaTime)
+            physics.rigidBodies.forEach(item => {
+                item.shape.Draw(ctx)
             })
 
-            ConvexList.forEach(c => {
-                c.color = "rgba(255,115,0,0.32)"
-            })
-
-            for (let i = 0; i < ConvexList.length; i++) {
-                for (let j = i + 1; j < ConvexList.length; j++) {
-                    let c = ConvexList[i];
-                    let oc = ConvexList[j]
-                    if (c !== oc && c.vertices.length > 2 && oc.vertices.length > 2) {
-                        let simplex = []
-                        let collision = GJK(c, oc, simplex, ctx, canvas)
-                        if (collision){
-                            c.color = "rgba(255,0,0,0.39)"
-                            oc.color = "rgba(255,0,0,0.32)"
-
-                            // let sl = simplex.length
-                            let dir = EPA(simplex, c, oc, ctx, canvas)
-                            //
-                            let mtv = new Segment(Vector2.Zero, Vector2.Zero.Add(dir))
-                            mtv.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
-                            mtv.Draw(ctx)
-                            //
-                            oc.Translate(dir.Multiply(0.5))
-                            c.Translate(dir.Inverse().Multiply(0.5))
-                            //
-                            let cc = new Convex(simplex)
-                            cc.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
-                            cc.color = "rgba(255,0,0,0.53)"
-                            cc.Draw(ctx)
-                        }
-
-                        let md = []
-
-                        for (let k = 0; k < c.extremies.length; k++) {
-                            for (let l = 0; l < oc.extremies.length; l++) {
-                                md.push(c.extremies[k].Substract(oc.extremies[l]))
-                            }
-                        }
-                        let mdc = new Convex(md)
-                        mdc.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
-
-                        if (mdc.extremies.length > 2) {
-                            ctx.beginPath()
-                            ctx.fillStyle = "rgba(255,220,0,0.33)"
-                            ctx.fill(mdc.path)
-
-                            ctx.lineWidth = 1
-                            ctx.strokeStyle = "rgba(255,220,0,0.33)"
-                            ctx.stroke(mdc.path)
-                        }
-
-                        mdc.extremies.forEach((point, index) => {
-                            point.color = "rgba(0,178,255,0.43)"
-                            point.size = 1
-                            point.Draw(ctx)
-                        })
-                    }
-                }
-            }
-
-            ConvexList.forEach(c => {
-                c.Draw(ctx)
-                // if (c.IsPointInside(ctx, pointerPos)){
-                //     let closest = ClosestEdge(c.extremies, pointerPos)
-                //     new Segment(closest.start, closest.start.Add(closest.edge)).Draw(ctx)
-                //     new Segment(pointerPos, pointerPos.Add(closest.n.Multiply(closest.d))).Draw(ctx)
-                // }
-            })
-            Triangles.forEach(c => c.Draw(ctx))
+            // let sx = new Segment(new Vector2(canvas.width / 2, 0), new Vector2(canvas.width / 2, canvas.height))
+            // let sy = new Segment(new Vector2(0, canvas.height / 2), new Vector2(canvas.width, canvas.height / 2))
+            // sx.lineWidth = 0.5
+            // sx.Draw(ctx)
+            // sy.lineWidth = 0.5
+            // sy.Draw(ctx)
+            //
+            // PointList.forEach(c => c.Draw(ctx))
+            // SegmentList.forEach(c => {
+            //     c.Draw(ctx)
+            //     // if (pointerPos) {
+            //     //     SegmentClosestPoint(c.start, c.end, pointerPos, ctx)
+            //     // }
+            // })
+            //
+            // ConvexList.forEach(c => {
+            //     c.color = "rgba(255,115,0,0.32)"
+            // })
+            //
+            // for (let i = 0; i < ConvexList.length; i++) {
+            //     for (let j = i + 1; j < ConvexList.length; j++) {
+            //         let c = ConvexList[i];
+            //         let oc = ConvexList[j]
+            //         if (c !== oc && c.vertices.length > 2 && oc.vertices.length > 2) {
+            //             let simplex = []
+            //             let collision = GJK(c, oc, simplex, ctx, canvas)
+            //             if (collision){
+            //                 c.color = "rgba(255,0,0,0.39)"
+            //                 oc.color = "rgba(255,0,0,0.32)"
+            //
+            //                 // let sl = simplex.length
+            //                 let dir = EPA(simplex, c, oc, ctx, canvas)
+            //                 //
+            //                 let mtv = new Segment(Vector2.Zero, Vector2.Zero.Add(dir))
+            //                 mtv.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
+            //                 mtv.Draw(ctx)
+            //                 //
+            //                 oc.Translate(dir.Multiply(0.5))
+            //                 c.Translate(dir.Inverse().Multiply(0.5))
+            //                 //
+            //                 let cc = new Convex(simplex)
+            //                 cc.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
+            //                 cc.color = "rgba(255,0,0,0.53)"
+            //                 cc.Draw(ctx)
+            //             }
+            //
+            //             let md = []
+            //
+            //             for (let k = 0; k < c.extremies.length; k++) {
+            //                 for (let l = 0; l < oc.extremies.length; l++) {
+            //                     md.push(c.extremies[k].Substract(oc.extremies[l]))
+            //                 }
+            //             }
+            //             let mdc = new Convex(md)
+            //             mdc.Translate(new Vector2(canvas.width / 2, canvas.height / 2))
+            //
+            //             if (mdc.extremies.length > 2) {
+            //                 ctx.beginPath()
+            //                 ctx.fillStyle = "rgba(255,220,0,0.33)"
+            //                 ctx.fill(mdc.path)
+            //
+            //                 ctx.lineWidth = 1
+            //                 ctx.strokeStyle = "rgba(255,220,0,0.33)"
+            //                 ctx.stroke(mdc.path)
+            //             }
+            //
+            //             mdc.extremies.forEach((point, index) => {
+            //                 point.color = "rgba(0,178,255,0.43)"
+            //                 point.size = 1
+            //                 point.Draw(ctx)
+            //             })
+            //         }
+            //     }
+            // }
+            //
+            // ConvexList.forEach(c => {
+            //     c.Draw(ctx)
+            //     // if (c.IsPointInside(ctx, pointerPos)){
+            //     //     let closest = ClosestEdge(c.extremies, pointerPos)
+            //     //     new Segment(closest.start, closest.start.Add(closest.edge)).Draw(ctx)
+            //     //     new Segment(pointerPos, pointerPos.Add(closest.n.Multiply(closest.d))).Draw(ctx)
+            //     // }
+            // })
+            // Triangles.forEach(c => c.Draw(ctx))
             requestAnimationFrame(Tick)
         }
     </script>
