@@ -20,20 +20,11 @@ class Physics {
         this.rigidBodies.push(rb2)
         this.rigidBodies.push(rb3)
 
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(236, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(237, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(238, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(239, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(216, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(226, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(246, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(256, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(266, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(276, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(286, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(296, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(436, 250), 8), 3))
-        this.rigidBodies.push(new RigidBody(new Circle(new Vector2(536, 250), 8), 3))
+        for (let i = 0; i < 30; i++) {
+            let rb = new RigidBody(new Circle(new Vector2(100 + Math.random() * 236, 100 + Math.random() * 250), 8), 3)
+            rb.velocity = new Vector2(Math.random() * 30, Math.random() * 30)
+            this.rigidBodies.push(rb)
+        }
     }
 
     CreateBoundary(canvas) {
