@@ -1,13 +1,51 @@
 class Collision {
-    constructor() {
+    constructor(mtv, rbA, rbB) {
+        this.mtv = mtv
+        this.rbA = rbA
+        this.rbB = rbB
+    }
 
+    ResolveCollision = () => {
+        let relativeVelocity = this.rbB.velocity.Substract(this.rbA.velocity)
+        let mtvN = this.mtv.Normalize()
+        let relativeVelocityAlongMTV = Vector2.Dot(mtvN, relativeVelocity)
+
+        if (relativeVelocityAlongMTV > 0) {
+            return;
+        }
+
+        if (this.rbA.isKinematic && this.rbB.isKinematic) {
+            return
+        }
+
+        let invMassSum = this.rbA.invMass + this.rbB.invMass
+        let e = (this.rbA.material.bounce * this.rbB.material.bounce * 2) / (this.rbA.material.bounce + this.rbB.material.bounce)
+        let jv = -(1 + e) * relativeVelocityAlongMTV
+
+        jv /= invMassSum
+        let impulseVector = mtvN.Multiply(jv)
+
+        this.rbA.velocity = this.rbA.velocity.Add(impulseVector.Multiply(-this.rbA.invMass))
+        this.rbB.velocity = this.rbB.velocity.Add(impulseVector.Multiply(this.rbB.invMass))
+    }
+
+    PositionCorrection() {
+        let correctionPercentage = 0.2
+        let correctionVector = this.mtv.Multiply(this.mtv.Magnitude() / (this.rbA.invMass + this.rbB.invMass) * correctionPercentage)
+
+        if (!this.rbA.isKinematic) {
+            this.rbA.shape.Translate(correctionVector.Multiply(-this.rbA.invMass))
+        }
+
+        if (!this.rbB.isKinematic) {
+            this.rbB.shape.Translate(correctionVector.Multiply(this.rbB.invMass))
+        }
     }
 }
 
 function TripleProduct(a, b, c) {
     return Vector3.Cross(Vector3.Cross(a, b), c)
 }
-
 
 function GJK(shapeA, shapeB, simplex){
     let dir = shapeB.center.Substract(shapeA.center)

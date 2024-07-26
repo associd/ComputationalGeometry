@@ -51,12 +51,31 @@ class Segment {
 class Shape{
     constructor(vertices) {
         this.vertices = vertices
-        this.center
+        let sum = Vector2.Zero
+        this.vertices.forEach(v => sum = sum.Add(v))
+        this.center = sum.Multiply(1 / this.vertices.length)
     }
 
-    Translate = (vector2Offset) => {}
+    Translate = (vector2Offset) => {
+        for (let i = 0; i < this.vertices.length; i++) {
+            this.vertices[i].AddPoint(vector2Offset)
+        }
+        this.center.AddPoint(vector2Offset)
+    }
 
-    Support(direction) {}
+    Support(direction) {
+        let closestPoint = this.vertices[0]
+        let maxDot = Vector2.Dot(direction, closestPoint.Substract(this.center))
+        this.vertices.forEach(e => {
+            let dotValue = Vector2.Dot(direction, e.Substract(this.center));
+            if (dotValue > maxDot) {
+                closestPoint = e;
+                maxDot = dotValue
+            }
+        })
+
+        return closestPoint;
+    }
     Draw(ctx) {}
     IsPointInside(ctx, vector2Point){}
     EventOnNormal() {}
@@ -264,4 +283,48 @@ class Convex extends Shape {
     }
 
     static DefaultColor = "#12ff00";
+}
+
+class Box extends Shape {
+    constructor(lt, size) {
+        let v = [
+            new Vector2(lt.x, lt.y + size.y),
+            new Vector2(lt.x + size.x, lt.y + size.y),
+            new Vector2(lt.x + size.x, lt.y),
+            new Vector2(lt.x, lt.y),
+        ]
+        super(v);
+    }
+
+    Draw(ctx) {
+        ctx.beginPath()
+        ctx.moveTo(this.vertices[0].x, this.vertices[0].y)
+        for (let i = 1; i < this.vertices.length; i++) {
+            ctx.lineTo(this.vertices[i].x, this.vertices[i].y)
+        }
+        // ctx.fillStyle = "rgba(255,115,0,0.62)"
+        ctx.stroke()
+    }
+}
+
+class Circle extends Shape{
+    constructor(center, radius = 8) {
+        super([center]);
+        this.radius = radius
+    }
+
+    Support(direction) {
+        return this.center.Add(direction.Normalize().Multiply(this.radius))
+    }
+
+    Draw(ctx) {
+        ctx.beginPath()
+        ctx.arc(this.center.x, this.center.y, this.radius, 0, 2 * Math.PI)
+        ctx.fillStyle = "#fff"
+        ctx.fill()
+    }
+
+    IsPointInside(ctx, vector2Point) {
+        return false
+    }
 }

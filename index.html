@@ -28,22 +28,22 @@
 </head>
 <body>
     <canvas id="canvas" style="display: block"></canvas>
-    <div class="dashboard">
-        <div>
-            <button id="addConvexBtn">添加一个凸包</button>
-            <button id="addTriangle">添加一一个三角形</button>
-            <button id="createSegmentBtn">添加一个线段</button>
-            <button id="createPoint">添加一个点</button>
+<!--    <div class="dashboard">-->
+<!--        <div>-->
+<!--            <button id="addConvexBtn">添加一个凸包</button>-->
+<!--            <button id="addTriangle">添加一一个三角形</button>-->
+<!--            <button id="createSegmentBtn">添加一个线段</button>-->
+<!--            <button id="createPoint">添加一个点</button>-->
 
-            <button id="toLeftTestBtn">进行toLeft测试</button>
-        </div>
-        <div>
-            <p id="info" style="color: white; text-align: center">说明文字</p>
-        </div>
-        <div>
-            <button id="endBtn" style="display: none">结束</button>
-        </div>
-    </div>
+<!--            <button id="toLeftTestBtn">进行toLeft测试</button>-->
+<!--        </div>-->
+<!--        <div>-->
+<!--            <p id="info" style="color: white; text-align: center">说明文字</p>-->
+<!--        </div>-->
+<!--        <div>-->
+<!--            <button id="endBtn" style="display: none">结束</button>-->
+<!--        </div>-->
+<!--    </div>-->
 
     <script>
         canvas.width = window.innerWidth;
@@ -69,169 +69,170 @@
         const PointList = []
         const Triangles = []
         const TriangleClosestPointList = {}
+        const physics = new Physics()
+
         window.KeysDown = {}
         window.KeyDownAction = {
-            "w": (rb) => rb.AddForce(new Vector2(0, -100)),
-            "a": (rb) => rb.AddForce(new Vector2(-100, 0)),
-            "s": (rb) => rb.AddForce(new Vector2(0, 100)),
-            "d": (rb) => rb.AddForce(new Vector2(100, 0)),
+            "w": (rb) => rb.AddForce(new Vector2(0, -150).Substract(physics.gravity)),
+            "a": (rb) => rb.AddForce(new Vector2(-150, 0)),
+            "s": (rb) => rb.AddForce(new Vector2(0, 150)),
+            "d": (rb) => rb.AddForce(new Vector2(150, 0)),
         }
-
-        const physics = new Physics()
 
         let mode = Mode.None;
         let ctx = canvas.getContext("2d");
         window.pointerPos = null
 
-        UpdateInfo();
+        physics.CreateBoundary(canvas)
+        // UpdateInfo();
 
-        addConvexBtn.addEventListener("click", evt => {
-            mode = Mode.AddConvex;
-            UpdateInfo();
-            evt.preventDefault()
-            evt.stopPropagation()
-
-            endBtn.style.display = "inline-block"
-            endBtn.addEventListener("click", endBtnClickHandler)
-            window.addEventListener("click", clickHandler);
-            let c = new Convex([])
-            ConvexList.push(c)
-
-            function clickHandler(evt) {
-                c.AddPoint(new Vector2(evt.offsetX, evt.offsetY));
-            }
-
-            function endBtnClickHandler(evt){
-                if (c.vertices.length === 0) {
-                    ConvexList.slice(ConvexList.indexOf(c), 1)
-                }
-                window.removeEventListener("click", clickHandler);
-                endBtn.removeEventListener("click", endBtnClickHandler)
-                mode = Mode.None;
-                UpdateInfo();
-
-                endBtn.style.display = "none"
-            }
-        })
-
-        createSegmentBtn.addEventListener("click", evt => {
-            mode = Mode.AddSegment;
-            UpdateInfo();
-            evt.preventDefault()
-            evt.stopPropagation()
-            let startVector = null;
-            let endVector = null;
-
-            function clickHandler(evt) {
-                if (startVector === null) {
-                    startVector = new Vector2(evt.offsetX, evt.offsetY)
-                    PointList.push(startVector)
-                }
-                else if (endVector === null){
-                    endVector = new Vector2(evt.offsetX, evt.offsetY);
-                    PointList.splice(PointList.indexOf(startVector), 1);
-                    SegmentList.push(new Segment(startVector, endVector))
-                    window.removeEventListener("click", clickHandler)
-                    mode = Mode.None;
-                    UpdateInfo();
-                }
-
-            }
-            window.addEventListener("click", clickHandler)
-        })
-
-        addTriangle.addEventListener("click", evt => {
-            mode = Mode.AddTriangle;
-            UpdateInfo();
-            evt.preventDefault()
-            evt.stopPropagation()
-
-            window.addEventListener("click", clickHandler)
-            let v = []
-            function clickHandler(evt) {
-                let p = new Vector2(evt.offsetX, evt.offsetY);
-                v.push(p)
-                PointList.push(p)
-
-                if (v.length >= 3) {
-                    v.forEach(p => {
-                        PointList.splice(PointList.indexOf(p), 1)
-                    })
-                    Triangles.push(new Triangle(v[0], v[1], v[2]))
-                    window.removeEventListener("click", clickHandler)
-                    mode = Mode.None;
-                    UpdateInfo();
-                }
-
-            }
-        })
-
-        createPoint.addEventListener("click", evt => {
-            mode = Mode.AddPoint;
-            UpdateInfo();
-            evt.preventDefault()
-            evt.stopPropagation()
-            function clickHandler(evt) {
-                PointList.push(new Vector2(evt.offsetX, evt.offsetY))
-                mode = Mode.None;
-                UpdateInfo();
-                window.removeEventListener("click", clickHandler)
-            }
-            window.addEventListener("click", clickHandler)
-        })
-
-        toLeftTestBtn.addEventListener("click", evt => {
-            mode = Mode.SelectSegment
-            UpdateInfo();
-            evt.preventDefault()
-            evt.stopPropagation()
-
-            let findSegment = null;
-            let selectedSegment = null;
-
-            endBtn.style.display = "inline-block"
-            endBtn.addEventListener("click", endBtnClickHandler)
-            window.addEventListener("mousemove", MouseMoveHandler)
-            window.addEventListener("click", ClickHandler)
-
-            function MouseMoveHandler(evt) {
-                switch (mode) {
-                    case Mode.SelectSegment:
-                        findSegment = null;
-                        SegmentList.forEach(s => {
-                            if (s.PointInPath(ctx, evt.offsetX, evt.offsetY)) {
-                                s.lineWidth = 4;
-                                findSegment = s;
-                            }else {
-                                s.lineWidth = 2;
-                            }
-                        })
-                        break
-                    case Mode.ToLeftTest:
-                        let point = new Vector2(evt.offsetX, evt.offsetY)
-                        selectedSegment.color = Vector2.ToLeft(selectedSegment.start, selectedSegment.end, point) ? "green" : "red"
-                        break;
-                }
-            }
-
-            function ClickHandler(evt) {
-                selectedSegment = findSegment
-                if (selectedSegment !== null) {
-                    mode = Mode.ToLeftTest
-                    UpdateInfo();
-                }
-            }
-
-            function endBtnClickHandler(evt){
-                window.removeEventListener("mousemove", MouseMoveHandler)
-                window.removeEventListener("click", ClickHandler)
-                endBtn.removeEventListener("click", endBtnClickHandler)
-                mode = Mode.None;
-                UpdateInfo();
-
-                endBtn.style.display = "none"
-            }
-        })
+        // addConvexBtn.addEventListener("click", evt => {
+        //     mode = Mode.AddConvex;
+        //     UpdateInfo();
+        //     evt.preventDefault()
+        //     evt.stopPropagation()
+        //
+        //     endBtn.style.display = "inline-block"
+        //     endBtn.addEventListener("click", endBtnClickHandler)
+        //     window.addEventListener("click", clickHandler);
+        //     let c = new Convex([])
+        //     ConvexList.push(c)
+        //
+        //     function clickHandler(evt) {
+        //         c.AddPoint(new Vector2(evt.offsetX, evt.offsetY));
+        //     }
+        //
+        //     function endBtnClickHandler(evt){
+        //         if (c.vertices.length === 0) {
+        //             ConvexList.slice(ConvexList.indexOf(c), 1)
+        //         }
+        //         window.removeEventListener("click", clickHandler);
+        //         endBtn.removeEventListener("click", endBtnClickHandler)
+        //         mode = Mode.None;
+        //         UpdateInfo();
+        //
+        //         endBtn.style.display = "none"
+        //     }
+        // })
+        //
+        // createSegmentBtn.addEventListener("click", evt => {
+        //     mode = Mode.AddSegment;
+        //     UpdateInfo();
+        //     evt.preventDefault()
+        //     evt.stopPropagation()
+        //     let startVector = null;
+        //     let endVector = null;
+        //
+        //     function clickHandler(evt) {
+        //         if (startVector === null) {
+        //             startVector = new Vector2(evt.offsetX, evt.offsetY)
+        //             PointList.push(startVector)
+        //         }
+        //         else if (endVector === null){
+        //             endVector = new Vector2(evt.offsetX, evt.offsetY);
+        //             PointList.splice(PointList.indexOf(startVector), 1);
+        //             SegmentList.push(new Segment(startVector, endVector))
+        //             window.removeEventListener("click", clickHandler)
+        //             mode = Mode.None;
+        //             UpdateInfo();
+        //         }
+        //
+        //     }
+        //     window.addEventListener("click", clickHandler)
+        // })
+        //
+        // addTriangle.addEventListener("click", evt => {
+        //     mode = Mode.AddTriangle;
+        //     UpdateInfo();
+        //     evt.preventDefault()
+        //     evt.stopPropagation()
+        //
+        //     window.addEventListener("click", clickHandler)
+        //     let v = []
+        //     function clickHandler(evt) {
+        //         let p = new Vector2(evt.offsetX, evt.offsetY);
+        //         v.push(p)
+        //         PointList.push(p)
+        //
+        //         if (v.length >= 3) {
+        //             v.forEach(p => {
+        //                 PointList.splice(PointList.indexOf(p), 1)
+        //             })
+        //             Triangles.push(new Triangle(v[0], v[1], v[2]))
+        //             window.removeEventListener("click", clickHandler)
+        //             mode = Mode.None;
+        //             UpdateInfo();
+        //         }
+        //
+        //     }
+        // })
+        //
+        // createPoint.addEventListener("click", evt => {
+        //     mode = Mode.AddPoint;
+        //     UpdateInfo();
+        //     evt.preventDefault()
+        //     evt.stopPropagation()
+        //     function clickHandler(evt) {
+        //         PointList.push(new Vector2(evt.offsetX, evt.offsetY))
+        //         mode = Mode.None;
+        //         UpdateInfo();
+        //         window.removeEventListener("click", clickHandler)
+        //     }
+        //     window.addEventListener("click", clickHandler)
+        // })
+        //
+        // toLeftTestBtn.addEventListener("click", evt => {
+        //     mode = Mode.SelectSegment
+        //     UpdateInfo();
+        //     evt.preventDefault()
+        //     evt.stopPropagation()
+        //
+        //     let findSegment = null;
+        //     let selectedSegment = null;
+        //
+        //     endBtn.style.display = "inline-block"
+        //     endBtn.addEventListener("click", endBtnClickHandler)
+        //     window.addEventListener("mousemove", MouseMoveHandler)
+        //     window.addEventListener("click", ClickHandler)
+        //
+        //     function MouseMoveHandler(evt) {
+        //         switch (mode) {
+        //             case Mode.SelectSegment:
+        //                 findSegment = null;
+        //                 SegmentList.forEach(s => {
+        //                     if (s.PointInPath(ctx, evt.offsetX, evt.offsetY)) {
+        //                         s.lineWidth = 4;
+        //                         findSegment = s;
+        //                     }else {
+        //                         s.lineWidth = 2;
+        //                     }
+        //                 })
+        //                 break
+        //             case Mode.ToLeftTest:
+        //                 let point = new Vector2(evt.offsetX, evt.offsetY)
+        //                 selectedSegment.color = Vector2.ToLeft(selectedSegment.start, selectedSegment.end, point) ? "green" : "red"
+        //                 break;
+        //         }
+        //     }
+        //
+        //     function ClickHandler(evt) {
+        //         selectedSegment = findSegment
+        //         if (selectedSegment !== null) {
+        //             mode = Mode.ToLeftTest
+        //             UpdateInfo();
+        //         }
+        //     }
+        //
+        //     function endBtnClickHandler(evt){
+        //         window.removeEventListener("mousemove", MouseMoveHandler)
+        //         window.removeEventListener("click", ClickHandler)
+        //         endBtn.removeEventListener("click", endBtnClickHandler)
+        //         mode = Mode.None;
+        //         UpdateInfo();
+        //
+        //         endBtn.style.display = "none"
+        //     }
+        // })
 
         //keysDown
         window.addEventListener("keydown", evt => {
